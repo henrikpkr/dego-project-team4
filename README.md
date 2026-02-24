@@ -3,6 +3,7 @@ DEGO Course Project — Team 4
 
 # # Team Members
 - Henrik Peuker
+- Ole Eiane
 ## Project Description
 Credit scoring bias analysis for DEGO course .
 ## Structure
