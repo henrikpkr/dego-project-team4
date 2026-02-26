@@ -11,3 +11,7 @@ Credit scoring bias analysis for DEGO course .
 - ‘ notebooks /‘ - Jupyter analysis notebooks
 - ‘ src /‘ - Python source code
 - ‘ reports /‘ - Final deliverables
+
+
+It should include an executive summary of findings, key metrics, and actionable governance recommendations. Think of it
+as the document your CTO would read.
