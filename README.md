@@ -4,6 +4,7 @@ DEGO Course Project — Team 4
 ## Team Members
 - Henrik Peuker
 - Ole Eiane
+- Maria Isabel Ravara
 
 ## Project Description
 Credit scoring bias analysis for the DEGO course. We act as a Data Governance Task Force
