@@ -259,4 +259,421 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` formats share a pattern and are ambiguous when
 | Records ready for analysis | **487 (97.4%)** |
 
 ---
+### Bias Analysis 
 
+
+## Privacy, GDPR, and AI Governance Assessment
+ 
+ 
+## 1. Purpose
+ The notebook evaluates how personal data is collected, processed, protected, retained, and governed under the **General Data Protection Regulation (GDPR)** and the **EU AI Act**.
+ 
+The assessment is designed to demonstrate both legal interpretation and practical implementation controls for a high-risk AI-enabled financial decision system.
+ 
+---
+ 
+## 2. File Submitted
+
+- **Notebook:** `03-privacy-demofinal.ipynb`
+ 
+---
+ 
+## 3. Assessment Scope
+
+The notebook covers six main workstreams:
+ 
+1. **PII identification and classification**  
+
+2. **GDPR article mapping and compliance obligations**  
+
+3. **Pseudonymization and anonymization controls**  
+
+4. **Right to erasure simulation under GDPR Article 17**  
+
+5. **EU AI Act classification of the credit scoring system**  
+
+6. **Governance and oversight controls** including audit logging, RBAC, retention, consent, and human review
+ 
+---
+ 
+## 4. Input Data
+
+The notebook loads the cleaned dataset:
+
+- **Source dataset:** `../data/cleaned_credit_applications.csv`
+ 
+### Dataset Profile
+
+- **Rows:** 500 credit applications
+
+- **Columns:** 32
+
+- **System assessed:** NovaCred automated credit approval / credit scoring workflow
+ 
+### Personal Data Fields Identified
+
+The notebook identifies **7 PII fields** in the dataset:
+
+- `applicant_info_full_name`
+
+- `applicant_info_email`
+
+- `applicant_info_ssn`
+
+- `applicant_info_ip_address`
+
+- `applicant_info_date_of_birth`
+
+- `applicant_info_zip_code`
+
+- `applicant_info_gender`
+ 
+### Other Key Operational / Decision Fields
+
+Examples of non-PII fields used in the assessment include:
+
+- `financials_annual_income`
+
+- `financials_credit_history_months`
+
+- `financials_debt_to_income`
+
+- `financials_savings_balance`
+
+- `decision_loan_approved`
+
+- `decision_interest_rate`
+
+- `decision_approved_amount`
+
+- `decision_rejection_reason`
+
+- `needs_review`
+
+- `processing_timestamp`
+ 
+---
+ 
+## 5. Analytical and Compliance Approach
+
+The notebook applies a structured privacy and governance review using both legal and technical controls.
+ 
+### 5.1 PII Identification and Sensitivity Classification
+
+Each PII field is classified by data type, legal category, and sensitivity level.
+ 
+#### Classification Logic
+
+- **Direct identifiers:** name, email
+
+- **Highly sensitive direct identifier:** SSN
+
+- **Online identifier:** IP address
+
+- **Quasi-identifiers:** date of birth, ZIP code
+
+- **Protected / special category risk:** gender
+ 
+#### Main Finding
+
+`applicant_info_gender` is treated as a **special-category / protected-attribute risk**. Its use in a credit decision system creates heightened GDPR Article 9 and anti-discrimination concerns and should not be used as a model feature without a valid legal basis.
+ 
+### 5.2 GDPR Article Mapping
+
+The notebook maps each field and processing activity to core GDPR requirements, including:
+
+- **Art. 5(1)(b):** purpose limitation
+
+- **Art. 5(1)(c):** data minimization
+
+- **Art. 5(1)(e):** storage limitation
+
+- **Art. 6:** lawful basis
+
+- **Art. 7:** consent
+
+- **Art. 9:** special categories
+
+- **Art. 17:** right to erasure
+
+- **Art. 22:** automated decision-making
+
+- **Art. 25:** privacy by design
+
+- **Art. 32:** security of processing
+
+- **Art. 35:** data protection impact assessment
+ 
+### 5.3 Pseudonymization and Anonymization
+
+The notebook demonstrates privacy-preserving transformation techniques:
+
+- **SHA-256 pseudonymization** for name, email, and SSN
+
+- **IP masking** by zeroing the final octet
+
+- **DOB generalization** into age bands
+
+- Creation of a **privacy-safe analytics dataset** with raw PII removed
+ 
+### 5.4 Right to Erasure Simulation
+
+The notebook simulates erasure under **GDPR Art. 17** while preserving records subject to legal hold.
+ 
+### 5.5 EU AI Act Assessment
+
+Because the system performs **creditworthiness assessment / credit scoring of natural persons**, it is classified as a **high-risk AI system** under **Annex III, Point 5(b)** of the EU AI Act.
+ 
+### 5.6 Governance Controls Implemented
+
+The notebook includes demonstration implementations for:
+
+- **PII access audit logging**
+
+- **Role-based access control (RBAC)**
+
+- **Data retention scheduling**
+
+- **Consent logging and withdrawal**
+
+- **Human oversight escalation queue**
+
+- **Model decision logging**
+ 
+---
+ 
+## 6. Key Results and Findings
+ 
+### 6.1 Dataset and Decision Statistics
+
+- **Applications processed:** 500
+
+- **Automated approvals:** 292 (**58.4%**)
+
+- **Automated rejections:** 208 (**41.6%**)
+
+- **Human-reviewed decisions:** 0 (**0.0%**) → clear compliance gap
+ 
+### 6.2 Privacy Transformation Results
+
+- **PII fields identified:** 7
+
+- **Records pseudonymized:** 500
+
+- **Records IP-masked:** 495
+
+- **Privacy-safe dataset columns retained:** 30
+
+- **Raw PII removed from analytics dataset:** 7 columns
+ 
+### 6.3 Article 22 Compliance Finding
+
+The system makes fully automated decisions but, at the time of assessment, lacks critical safeguards required by **GDPR Art. 22(3)**:
+
+- no live mechanism for applicants to request human review
+
+- no applicant-facing explanation for rejected decisions
+
+- no documented safeguard workflow for automated decision challenge
+ 
+This is one of the most important compliance gaps identified.
+ 
+### 6.4 Erasure Simulation Results
+
+- **Successful erasures completed:** 1
+
+- **Erasures blocked due to legal hold (Art. 17(3)):** 1
+ 
+The notebook demonstrates that direct PII can be removed while preserving legally required operational decision records.
+ 
+### 6.5 Retention Results
+
+Defined retention periods include:
+
+- **Name / email / DOB / ZIP / gender:** 5 years
+
+- **SSN:** 7 years
+
+- **IP address:** 90 days
+
+- **Decision records:** 7 years
+
+- **Audit logs:** 10 years
+ 
+At the time of execution:
+
+- **Expired records identified:** 0
+
+- **Active records:** 500
+ 
+### 6.6 Consent and Accountability Results
+
+- **Consent records logged:** 6 across 3 applicants
+
+- **Audit log entries captured:** 10
+
+- **Model decision log entries captured:** 3
+ 
+These controls demonstrate accountability and traceability, but they remain prototype-level and would need production hardening.
+ 
+### 6.7 Human Oversight Results
+
+- **Applications escalated for human review:** 14 (**2.8%**)
+
+- All escalations shown were **HIGH priority**
+ 
+The notebook establishes the structure for a human review queue, but the summary explicitly notes that the pipeline is not yet live in production.
+ 
+### 6.8 Overall Governance Outcome
+
+- **Overall governance score:** 86%
+ 
+This indicates strong conceptual and technical progress, but not full operational compliance.
+ 
+---
+ 
+## 7. Compliance Position
+ 
+### GDPR Summary
+
+The notebook shows strong coverage of the core GDPR control areas:
+
+- PII identification completed
+
+- lawful basis documented
+
+- minimization demonstrated
+
+- retention controls implemented
+
+- accountability controls implemented
+
+- consent logging implemented
+
+- erasure workflow implemented
+
+- privacy-by-design controls demonstrated
+
+- security controls demonstrated
+
+- DPIA-style risk assessment completed
+ 
+### Areas Still Partial or Incomplete
+
+- **Article 22:** human intervention mechanism is not fully operational
+
+- **Article 9 risk:** gender should be excluded from model features unless a valid special-category basis is established
+
+- applicant-facing transparency and explanation mechanisms are still incomplete
+ 
+### EU AI Act Summary
+
+The system is correctly classified as **high-risk**. The notebook shows partial implementation readiness, but important obligations remain incomplete:
+
+- ongoing risk management is not yet fully operational
+
+- formal technical documentation is not yet complete
+
+- applicant-facing transparency is missing
+
+- human oversight is designed but not live
+
+- a formal quality management system is not yet documented
+ 
+---
+ 
+## 8. Main Compliance Gaps Identified
+
+1. **No operational human-review process for automated credit decisions**  
+
+2. **No applicant-facing explanation / contestability workflow for rejected applications**  
+
+3. **Use of gender presents a high legal and ethical risk**  
+
+4. **EU AI Act technical documentation is not yet formalized**  
+
+5. **Transparency disclosures to affected individuals are not yet implemented**  
+
+6. **Continuous monitoring and quality management remain incomplete**
+ 
+---
+ 
+## 9. Final Recommendations
+
+The notebook’s own concluding recommendations are well supported by the evidence and should be treated as priority actions:
+ 
+1. **Remove `applicant_info_gender` from all model features immediately** unless a valid Article 9 basis can be proven.  
+
+2. **Implement a GDPR Article 22(3) redress mechanism** so rejected applicants can request meaningful human review.  
+
+3. **Formalize EU AI Act Article 11 technical documentation** covering model architecture, training data, assumptions, and performance.  
+
+4. **Deploy automated deletion for raw IP addresses after 90 days** in line with the retention schedule.  
+
+5. **Commission an independent formal DPIA / external review** before production deployment.  
+
+6. **Operationalize human oversight** so escalations can be reviewed, overridden, and closed by authorized staff.  
+
+7. **Add applicant-facing transparency notices** for AI-assisted credit decisions.
+ 
+---
+ 
+## 10. Deliverables Demonstrated in the Notebook
+
+The notebook is not only descriptive; it includes practical implementation examples for:
+
+- PII classification
+
+- GDPR obligation mapping
+
+- DPIA-style risk register
+
+- pseudonymization and masking
+
+- privacy-safe analytics dataset generation
+
+- erasure workflow and audit log
+
+- model decision logging
+
+- audit logging for field access
+
+- RBAC enforcement
+
+- retention control logic
+
+- consent ledger and withdrawal handling
+
+- human oversight escalation queue
+
+- final compliance metrics dashboard
+ 
+---
+ 
+## 11. Conclusion
+
+This submission provides a **well-structured, DPO-level privacy and AI governance assessment** of the NovaCred credit scoring system. It demonstrates a strong understanding of both **GDPR compliance requirements** and the **EU AI Act obligations** applicable to high-risk AI in financial services.
+ 
+The work is strongest in its treatment of:
+
+- privacy risk identification
+
+- pseudonymization and data minimization
+
+- erasure handling
+
+- governance control design
+
+- legal mapping to GDPR and EU AI Act provisions
+ 
+The most significant remaining issue is that the system still relies on **fully automated decision-making without a live human intervention process**, which creates a material compliance gap under **GDPR Article 22** and weakens readiness under **EU AI Act Article 14**.
+ 
+Overall, the notebook is a strong compliance-focused prototype and a credible submission for demonstrating privacy, governance, and responsible AI oversight in an automated credit scoring context.
+ 
+---
+ 
+## 12. Executive Summary (One-Paragraph Version)
+
+The submitted notebook evaluates the NovaCred automated credit scoring system against GDPR and EU AI Act requirements using a 500-row, 32-column cleaned credit application dataset. It identifies 7 PII fields, demonstrates pseudonymization, IP masking, data minimization, retention controls, audit logging, consent management, and right-to-erasure handling, and confirms that the system qualifies as a high-risk AI system under Annex III of the EU AI Act. The strongest findings are the successful implementation of privacy-preserving controls and governance prototypes; the main weakness is the absence of a live Article 22-compliant human review and explanation mechanism for fully automated credit decisions. The notebook reports an overall governance score of 86%, indicating substantial compliance progress but not full production readiness.
+
+ 
