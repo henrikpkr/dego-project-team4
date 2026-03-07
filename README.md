@@ -250,16 +250,164 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` formats share a pattern and are ambiguous when
 |---|---|
 | Raw records | 502 |
 | Records after deduplication | **500** |
-| Columns in `df_clean` | **34** |
-| Records flagged `needs_review = True` | **13 (2.6%)** |
-| Records flagged `ssn_duplicate = True` | 4 |
-| Records flagged `email_malformed = True` | 4 |
-| Records flagged `email_missing = True` | 7 |
-| Records flagged `credit_history_suspicious = True` | 0 |
+| Columns in df_clean | **34** |
+| Records flagged needs_review = True | **13 (2.6%)** |
+| Records flagged ssn_duplicate = True | 4 |
+| Records flagged email_malformed = True | 4 |
+| Records flagged email_missing = True | 7 |
+| Records flagged credit_history_suspicious = True | 0 |
 | Records ready for analysis | **487 (97.4%)** |
 
 ---
-### Bias Analysis 
+
+### Bias & Fairness Analysis
+
+> **Role:** Data Analyst
+> **Notebook:** `notebooks/02-bias-analysis.ipynb`
+> **Dataset:** `data/cleaned_credit_applications.csv` — 500 records (487 after quality filtering)
+
+---
+
+#### Overview
+
+This notebook evaluates **fairness risks in the NovaCred automated credit scoring system**. It analyses approval-rate disparities across protected and quasi-protected attributes — gender, age, and ZIP code — using standard fairness metrics, statistical tests, and visual diagnostics. All analysis is performed on the cleaned dataset produced by `01-data-quality.ipynb`. Direct identifiers (name, email, SSN, IP) are intentionally excluded from all outputs.
+
+---
+
+#### Notebook Structure
+
+| Section | Title |
+|---------|-------|
+| **0** | Setup & Imports |
+| **1** | Load Cleaned Dataset |
+| **2** | Pre-analysis Quality Filtering |
+| **3** | Scope: Exclude Direct Identifiers |
+| **4** | Sanity Checks — Group Counts |
+| **5** | Issue 1: Gender Disparate Impact |
+| **6** | Fairness Metric Cross-check (Fairlearn) |
+| **7** | Statistical Test: Gender × Approval |
+| **8** | Issue 2: Age-Based Patterns |
+| **9** | Issue 3: Interaction Effects (Age × Gender) |
+| **10** | Issue 4: ZIP Code Proxy Discrimination |
+| **11** | Correlation Scan |
+| **12** | Bias Analysis Summary |
+| **13** | Implications for Fairness & Governance |
+
+---
+
+#### Pre-analysis Filtering
+
+Before any fairness computation, three record categories are excluded:
+
+| Flag | Records excluded | Reason |
+|------|-----------------|--------|
+| needs_review | 13 | Confirmed duplicates / name–email mismatch  could distort group-level rates |
+| dob_missing | 0 (after DQ) | No DOB → age bucket impossible |
+| gender = Unknown | 3 | No protected-attribute signal excluded to keep group comparisons clean |
+
+**Analytical sample: 487 records** (97.4% of cleaned dataset).
+
+---
+
+#### Issue 1 — Gender Disparate Impact
+
+| Group | N | Approval Rate |
+|-------|---|--------------|
+| Female | 250 | **50.8%** |
+| Male | 247 | **65.9%** |
+| **DI ratio (F/M)** | — | **0.77** |
+
+The **four-fifths rule** threshold is 0.80. At **DI = 0.77**, female applicants fall below this threshold, flagging potential adverse impact.
+
+A **chi-square test of independence** (χ² = 11.18, df = 1, p = 0.0008) confirms the association between gender and approval outcome is statistically significant at p < 0.001 — well below the 0.05 threshold.
+
+A **Fairlearn demographic parity difference** cross-check is included as a complementary absolute-gap measure.
+
+---
+
+#### Issue 2 — Age-Based Patterns
+
+Applicants are bucketed into six age groups and approval rates compared:
+
+| Age Group | Approx. Approval Rate |
+|-----------|----------------------|
+| 18–24 | ~54% |
+| 25–34 | **~44%** (lowest) |
+| 35–44 | **~67%** (highest) |
+| 45–54 | ~63% |
+| 55–64 | ~62% |
+| 65+ | ~54% |
+
+The **25–34** group has a notably lower approval rate than the dataset average, while **35–44** applicants are approved at the highest rate.
+
+---
+
+#### Issue 3 — Interaction Effects (Age × Gender)
+
+Cross-tabulation of age bucket × gender reveals the gender gap is **not confined to one age group** — it is consistent across the dataset:
+
+- **25–34:** Female 33.3% vs Male 56.3% — largest gap (~23 pp)
+- **55–64:** Female 54.8% vs Male 72.0% — second largest gap (~17 pp)
+- All other age buckets: same direction (Male > Female)
+
+This indicates a **systemic pattern** rather than a localised anomaly.
+
+---
+
+#### Issue 4 — ZIP Code Proxy Discrimination
+
+ZIP code is not a protected attribute, but geographic data can act as a proxy for demographics. Analysis steps:
+
+1. Filter to ZIP codes with ≥ 5 applications (19 ZIP codes remain)
+2. Compute approval rate and female share per ZIP
+3. Correlate female share with approval rate across ZIPs
+
+**Results:**
+- Approval rates across filtered ZIPs range from ~0.20 to 1.00 — substantial geographic variation
+- Correlation between female share and approval rate: **−0.22** (weak negative)
+- No strong linear pattern in scatter plot — ZIP code is **not a clear gender proxy** in this dataset, but geographic disparity in outcomes warrants monitoring
+
+---
+
+#### Correlation Scan
+
+Point-biserial correlations between numeric features and loan_approved:
+
+| Feature | Correlation |
+|---------|------------|
+| annual_income | +0.179 |
+| credit_history_months | +0.141 |
+| savings_balance | +0.133 |
+| age_years | +0.124 |
+| zip_code | −0.124 |
+| debt_to_income | (negative) |
+
+Income, credit history, and savings are the strongest legitimate predictors. ZIP code shows a small negative correlation consistent with the proxy analysis.
+
+---
+
+#### Key Findings
+
+| Finding | Metric | Flag |
+|---------|--------|------|
+| Gender DI below four-fifths threshold | DI = 0.77 | Adverse impact flag |
+| Gender–approval association is statistically significant | p = 0.0008 | Significant |
+| Gender gap is present across **all** age groups | Consistent direction | Systemic |
+| 25–34 age group has lowest approval rate | ~44% | Monitor |
+| ZIP code not a clear gender proxy | r = −0.22 | Weak signal only |
+| Top predictors are legitimate financial variables | Income, credit history, savings | Expected |
+
+---
+
+#### Implications for Governance
+
+The analysis identifies a material gender disparity in approval outcomes that falls below the standard four-fifths rule threshold and is confirmed by statistical testing. This does not prove intentional discrimination, but it does require:
+
+1. **Root-cause investigation** — determine whether the disparity is driven by the model, the input features, or the underlying application population
+2. **Feature audit** — assess whether any features used by the model are correlated with gender (proxy discrimination risk)
+3. **Ongoing monitoring** — track DI metrics in production and alert when DI falls below 0.80
+4. **GDPR Art. 22 / EU AI Act Art. 10** — fairness obligations must be documented as part of the DPIA and the high-risk AI system's technical documentation
+
 
 
 ## Privacy, GDPR, and AI Governance Assessment
@@ -620,8 +768,6 @@ The notebook’s own concluding recommendations are well supported by the eviden
  
 ## 10. Deliverables Demonstrated in the Notebook
 
-The notebook is not only descriptive; it includes practical implementation examples for:
-
 - PII classification
 
 - GDPR obligation mapping
@@ -667,8 +813,6 @@ The work is strongest in its treatment of:
 - legal mapping to GDPR and EU AI Act provisions
  
 The most significant remaining issue is that the system still relies on **fully automated decision-making without a live human intervention process**, which creates a material compliance gap under **GDPR Article 22** and weakens readiness under **EU AI Act Article 14**.
- 
-Overall, the notebook is a strong compliance-focused prototype and a credible submission for demonstrating privacy, governance, and responsible AI oversight in an automated credit scoring context.
  
 ---
  
