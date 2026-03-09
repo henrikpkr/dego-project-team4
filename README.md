@@ -73,7 +73,7 @@ The dataset was audited across four data quality dimensions: completeness, consi
 | `ssn_duplicate` | 4 | 496 | Accuracy |
 | `needs_review` | 17 | 483 | Composite |
 
-`needs_review` is a composite quarantine flag set to `True` for any record that carries at least one of the following: a missing PII field (`email`, `dob`, `ssn`, `gender`), a missing or invalid financial field (`debt_to_income`, `savings_balance`), or an SSN collision. 17 records (3.4%) are quarantined from model training. `timestamp_missing` is tracked separately as a pipeline defect and does not trigger `needs_review`.
+`needs_review` is a composite quarantine flag set to `True` for any record that carries at least one of the following: a missing PII field (`email`, `dob`, `ssn`, `gender`), a missing or invalid financial field (`debt_to_income`, `savings_balance`), or an SSN collision. 17 records (3.4%) are quarantined from model training.
 
 The `needs_review` trigger breakdown is:
 
@@ -94,15 +94,14 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ### Completeness
 
-#### Issue 1 — Missing `processing_timestamp` (438 records, 87.6%)
+#### Issue 1: Missing `processing_timestamp` (438 records, 87.6%)
 
 **Finding:** 438 of 500 clean records have no `processing_timestamp`. The field was not populated for the vast majority of applications, indicating a systemic upstream pipeline defect rather than individual data-entry errors.
 
-**Remediation:** Flagged `timestamp_missing = True`. No imputation and no `needs_review` trigger, because `processing_timestamp` has no downstream model or identity-verification dependency. The volume and uniformity of the gap make this a known infrastructure issue, not an application-level anomaly. The field is tracked separately in the scorecard so it remains visible without inflating the quarantine count.
-
+**Remediation:** Flagged `timestamp_missing = True`. No imputation and no `needs_review` trigger, because `processing_timestamp` has no downstream model or identity-verification dependency. 
 ---
 
-#### Issue 2 — Missing `email` (7 records, 1.4%)
+#### Issue 2: Missing `email` (7 records, 1.4%)
 
 **Finding:** 7 records have no email address. Empty string values were present in the raw data alongside genuine nulls; both were normalised to `NaN` to enforce a single missing-value representation.
 
@@ -110,7 +109,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ---
 
-#### Issue 3 — Missing `date_of_birth` (5 in raw, 4 in `df_clean`)
+#### Issue 3: Missing `date_of_birth` (5 in raw, 4 in `df_clean`)
 
 **Finding:** 5 raw records had no date of birth (4 empty strings, 1 null). One of those records was removed during the accuracy phase as a duplicate entry, leaving 4 missing DOBs in `df_clean`.
 
@@ -118,7 +117,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ---
 
-#### Issue 4 — Missing `ssn` (5 in raw, 4 in `df_clean`)
+#### Issue 4: Missing `ssn` (5 in raw, 4 in `df_clean`)
 
 **Finding:** 5 raw records had no SSN. One was removed during the accuracy phase, leaving 4 in `df_clean`.
 
@@ -126,7 +125,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ---
 
-#### Issue 5 — Missing `annual_income` resolved by field coalesce (5 records)
+#### Issue 5: Missing `annual_income` resolved by field coalesce (5 records)
 
 **Finding:** 5 records had `annual_income = null` because the applicant had populated `annual_salary` instead. The two fields are mutually exclusive across the dataset — no record has both populated — confirming this is a data-entry naming error rather than genuinely missing income data.
 
@@ -134,7 +133,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ---
 
-#### Issue 6 — Missing `gender` (2 records in `df_clean`, 0.4%)
+#### Issue 6: Missing `gender` (2 records in `df_clean`, 0.4%)
 
 **Finding:** 2 records in `df_clean` have no gender value (empty string in raw data). A third raw record with a null gender was removed during the accuracy phase as a duplicate entry and does not appear in `df_clean`.
 
@@ -144,7 +143,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ### Consistency
 
-#### Issue 7 — Inconsistent gender coding (114 non-standard records, 22.7%)
+#### Issue 7: Inconsistent gender coding (114 non-standard records, 22.7%)
 
 **Finding:** The `gender` field uses four surface representations for two logical values: `Male`, `M`, `Female`, `F`, plus empty string and null. 114 records used the abbreviated forms. Without normalisation, group-level fairness analysis would produce incorrect counts and approval-rate calculations.
 
@@ -152,7 +151,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ---
 
-#### Issue 8 — `annual_income` stored as string (8 records, 1.6%)
+#### Issue 8: `annual_income` stored as string (8 records, 1.6%)
 
 **Finding:** 8 records stored income as a plain string (e.g. `"55000"`) rather than a numeric type. All 8 values are clean integers without currency symbols or separators.
 
@@ -160,7 +159,7 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 
 ---
 
-#### Issue 9 — Inconsistent `date_of_birth` formats (161 records, 32.2%)
+#### Issue 9: Inconsistent `date_of_birth` formats (161 records, 32.2%)
 
 **Finding:** DOB is stored in five formats across the dataset:
 
@@ -181,7 +180,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ### Validity
 
-#### Issue 10 — `credit_history_months` < 0 (2 records, 0.4%)
+#### Issue 10: `credit_history_months` < 0 (2 records, 0.4%)
 
 **Finding:** 2 records had negative credit history values (`app_043: -10`, `app_156: -3`). A negative credit history duration has no valid interpretation and is consistent with a data-entry sign error.
 
@@ -189,7 +188,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ---
 
-#### Issue 11 — `debt_to_income` > 1.0 (1 record, 0.2%)
+#### Issue 11:  `debt_to_income` > 1.0 (1 record, 0.2%)
 
 **Finding:** 1 record (`app_402`) had a DTI ratio of 1.85. A DTI above 1.0 means total debt exceeds total income, which is not a valid financial state in the context of this dataset's DTI definition.
 
@@ -197,7 +196,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ---
 
-#### Issue 12 — `savings_balance` < 0 (1 record, 0.2%)
+#### Issue 12: `savings_balance` < 0 (1 record, 0.2%)
 
 **Finding:** 1 record (`app_290`) had a savings balance of -5000. A negative savings balance is not a valid value in this dataset — savings balance represents the balance of a deposit account, which cannot be negative.
 
@@ -205,7 +204,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ---
 
-#### Issue 13 — `savings_balance` == 0 (4 records, notable)
+#### Issue 13: `savings_balance` == 0 (4 records, notable)
 
 **Finding:** 4 records have a savings balance of exactly 0. This is a valid value and not a data quality defect, but it is flagged for analyst awareness because zero savings is a financially meaningful edge case that may affect model behaviour.
 
@@ -213,7 +212,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ---
 
-#### Issue 14 — `credit_history_months` exceeds age-derived maximum (0 records after pipeline enforcement)
+#### Issue 14: `credit_history_months` exceeds age-derived maximum (0 records after pipeline enforcement)
 
 **Finding:** No records in `df_clean` have a credit history that exceeds the maximum possible given the applicant's age (months since 18th birthday as of the audit date 2026-02-28). The cap was enforced during cleaning; any future records that breach it will be clamped and flagged `credit_history_suspicious = True`.
 
@@ -221,7 +220,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ---
 
-#### Issue 15 — Malformed email with name/identity mismatch (4 records, 0.8%)
+#### Issue 15: Malformed email with name/identity mismatch (4 records, 0.8%)
 
 **Finding:** 4 records contain structurally invalid email addresses, each of which also contains a different person's name in the local part — a simultaneous format validity failure and an identity consistency failure:
 
@@ -238,7 +237,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ### Accuracy
 
-#### Issue 16 — Duplicate `_id` records (2 pairs, 2 rows removed)
+#### Issue 16: Duplicate `_id` records (2 pairs, 2 rows removed)
 
 **Finding:** 2 application IDs (`app_001`, `app_042`) each appear twice in the raw dataset with conflicting field values. Both duplicate copies were identifiable via `notes` values of `DUPLICATE_ENTRY_ERROR` and `RESUBMISSION`, confirming these are submission-level duplicates rather than data corruption.
 
@@ -246,7 +245,7 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 ---
 
-#### Issue 17 — SSN shared by multiple distinct applicants (2 SSNs, 4 records, 0.8%)
+#### Issue 17: SSN shared by multiple distinct applicants (2 SSNs, 4 records, 0.8%)
 
 **Finding:** Two SSN values appear on records belonging to demonstrably different individuals (different names, emails, genders, and financial profiles). A third SSN collision exists for the `app_042` duplicate pair but is resolved by deduplication. The two genuine cross-applicant collisions are:
 
@@ -257,15 +256,6 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or b
 
 **Remediation:** All 4 affected records flagged `ssn_duplicate = True` and quarantined via `needs_review`. Records are retained rather than dropped — removing them would destroy potentially valid financial data and could obstruct fraud investigation. This incident must be escalated for manual review. A `UNIQUE` constraint on the `ssn` field at the data ingestion layer is recommended to prevent recurrence.
 
----
-
-#### Issue 18 — PII stored in plaintext (500 records, 100%)
-
-**Finding:** SSN, email address, date of birth, and full name are all stored in plaintext in the raw dataset. This represents a GDPR compliance risk — exposure of this file would constitute a personal data breach.
-
-**Remediation:** Pseudonymisation and access control are addressed in `notebooks/03-privacy-demo.ipynb`. The cleaned export (`data/cleaned_credit_applications.csv`) retains these fields for internal audit use only and must not be distributed without pseudonymisation.
-
----
 
 ### Post-Cleaning Dataset Summary
 
@@ -484,7 +474,7 @@ The notebook loads the cleaned dataset:
 
 - **Rows:** 500 credit applications
 
-- **Columns:** 32
+- **Columns:** 37
 
 - **System assessed:** NovaCred automated credit approval / credit scoring workflow
  
@@ -848,6 +838,6 @@ The most significant remaining issue is that the system still relies on **fully 
  
 ## 12. Executive Summary (One-Paragraph Version)
 
-The submitted notebook evaluates the NovaCred automated credit scoring system against GDPR and EU AI Act requirements using a 500-row, 32-column cleaned credit application dataset. It identifies 7 PII fields, demonstrates pseudonymization, IP masking, data minimization, retention controls, audit logging, consent management, and right-to-erasure handling, and confirms that the system qualifies as a high-risk AI system under Annex III of the EU AI Act. The strongest findings are the successful implementation of privacy-preserving controls and governance prototypes; the main weakness is the absence of a live Article 22-compliant human review and explanation mechanism for fully automated credit decisions. The notebook reports an overall governance score of 86%, indicating substantial compliance progress but not full production readiness.
+The submitted notebook evaluates the NovaCred automated credit scoring system against GDPR and EU AI Act requirements using a 500-row, 37-column cleaned credit application dataset. It identifies 7 PII fields, demonstrates pseudonymization, IP masking, data minimization, retention controls, audit logging, consent management, and right-to-erasure handling, and confirms that the system qualifies as a high-risk AI system under Annex III of the EU AI Act. The strongest findings are the successful implementation of privacy-preserving controls and governance prototypes; the main weakness is the absence of a live Article 22-compliant human review and explanation mechanism for fully automated credit decisions. The notebook reports an overall governance score of 86%, indicating substantial compliance progress but not full production readiness.
 
  
