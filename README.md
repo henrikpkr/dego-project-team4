@@ -26,7 +26,7 @@ fairness/bias, and GDPR/AI Act compliance.
 | Notebook | Role | Purpose |
 |---|---|---|
 | `01-data-quality.ipynb` | Data Engineer | DQ audit, cleaning pipeline, `df_clean` |
-| `02-bias-analysis.ipynb` | Data Analyst | Fairness metrics, demographic parity |
+| `02-bias-analysis.ipynb` | Data Scientist | Fairness metrics, demographic parity |
 | `03-privacy-demo.ipynb` | DPO | GDPR pseudonymisation, access controls |
 
 ## Key Findings
@@ -262,9 +262,9 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` formats share a pattern and are ambiguous when
 
 ### Bias & Fairness Analysis
 
-> **Role:** Data Analyst
+> **Role:** Data Scientist
 > **Notebook:** `notebooks/02-bias-analysis.ipynb`
-> **Dataset:** `data/cleaned_credit_applications.csv` — 500 records (487 after quality filtering)
+> **Dataset:** `data/cleaned_credit_applications.csv` — 500 records (483 after quality filtering)
 
 ---
 
@@ -301,11 +301,11 @@ Before any fairness computation, three record categories are excluded:
 
 | Flag | Records excluded | Reason |
 |------|-----------------|--------|
-| needs_review | 13 | Confirmed duplicates / name–email mismatch  could distort group-level rates |
+| needs_review | 17 | Confirmed duplicates / name–email mismatch  could distort group-level rates |
 | dob_missing | 0 (after DQ) | No DOB → age bucket impossible |
 | gender = Unknown | 3 | No protected-attribute signal excluded to keep group comparisons clean |
 
-**Analytical sample: 487 records** (97.4% of cleaned dataset).
+**Analytical sample: 487 records** (96.6% of cleaned dataset).
 
 ---
 
@@ -313,44 +313,47 @@ Before any fairness computation, three record categories are excluded:
 
 | Group | N | Approval Rate |
 |-------|---|--------------|
-| Female | 250 | **50.8%** |
-| Male | 247 | **65.9%** |
-| **DI ratio (F/M)** | — | **0.77** |
+| Female | 242 | **50%** |
+| Male | 241 | **66.8%** |
+| **DI ratio (F/M)** | — | **0.75** |
 
-The **four-fifths rule** threshold is 0.80. At **DI = 0.77**, female applicants fall below this threshold, flagging potential adverse impact.
+The **four-fifths rule** threshold is 0.80. At **DI = 0.75**, female applicants fall below this threshold, flagging potential adverse impact.
 
-A **chi-square test of independence** (χ² = 11.18, df = 1, p = 0.0008) confirms the association between gender and approval outcome is statistically significant at p < 0.001 — well below the 0.05 threshold.
+A **chi-square test of independence** (χ² = 13.35, df = 1, p = 0.0003) confirms the association between gender and approval outcome is statistically significant at p < 0.001 — well below the 0.05 threshold.
 
 A **Fairlearn demographic parity difference** cross-check is included as a complementary absolute-gap measure.
 
 ---
 
-#### Issue 2 — Age-Based Patterns
+#### Issue 2 -- Age-Based Patterns
 
 Applicants are bucketed into six age groups and approval rates compared:
 
 | Age Group | Approx. Approval Rate |
 |-----------|----------------------|
-| 18–24 | ~54% |
-| 25–34 | **~44%** (lowest) |
-| 35–44 | **~67%** (highest) |
-| 45–54 | ~63% |
-| 55–64 | ~62% |
-| 65+ | ~54% |
+| 18--24 | ~50% |
+| 25--34 | **~45%** (lowest) |
+| 35--44 | **~65.7%** |
+| 45--54 | **~65.9%** (highest) |
+| 55--64 | ~61% |
+| 65+ | ~58% |
 
-The **25–34** group has a notably lower approval rate than the dataset average, while **35–44** applicants are approved at the highest rate.
+The **25--34** group has a notably lower approval rate than the dataset average, while **45--54** applicants are approved at the highest rate, closely followed by **35--44**. The two youngest groups, **18--24** and **25--34**, have the lowest approval rates, while the oldest group, **65+**, sits in the middle at around 58%.
 
 ---
 
-#### Issue 3 — Interaction Effects (Age × Gender)
+#### Issue 3 - Interaction Effects (Age x Gender)
 
-Cross-tabulation of age bucket × gender reveals the gender gap is **not confined to one age group** — it is consistent across the dataset:
+Cross-tabulation of age bucket x gender reveals the gender gap is **not confined to one age group** and is consistent across almost all age buckets:
 
-- **25–34:** Female 33.3% vs Male 56.3% — largest gap (~23 pp)
-- **55–64:** Female 54.8% vs Male 72.0% — second largest gap (~17 pp)
-- All other age buckets: same direction (Male > Female)
+- **25--34:** Female 34.6% vs Male 57.1% -- largest gap (~22.5 pp)
+- **55--64:** Female 51.7% vs Male 72.0% -- second largest gap (~20.3 pp)
+- **65+:** Female 50.0% vs Male 75.0% -- gap of 25 pp (small sample, interpret with caution)
+- **35--44:** Female 58.0% vs Male 72.5% -- gap of ~14.5 pp
+- **45--54:** Female 62.5% vs Male 68.9% -- smallest gap (~6.4 pp)
+- **18--24:** Female 50.0% vs Male 50.0% -- no gap (very small sample)
 
-This indicates a **systemic pattern** rather than a localised anomaly.
+This indicates a **systemic pattern** rather than a localised anomaly, with male applicants consistently outperforming female applicants across nearly every age group.
 
 ---
 
@@ -375,14 +378,14 @@ Point-biserial correlations between numeric features and loan_approved:
 
 | Feature | Correlation |
 |---------|------------|
-| annual_income | +0.179 |
-| credit_history_months | +0.141 |
-| savings_balance | +0.133 |
-| age_years | +0.124 |
-| zip_code | −0.124 |
-| debt_to_income | (negative) |
+| annual_income | +0.172 |
+| credit_history_months | +0.154 |
+| savings_balance | +0.136 |
+| zip_code | -0.133 |
+| age_years | +0.131 |
+| debt_to_income | +0.009 |
 
-Income, credit history, and savings are the strongest legitimate predictors. ZIP code shows a small negative correlation consistent with the proxy analysis.
+Income, credit history, and savings are the strongest legitimate predictors. ZIP code shows a small negative correlation consistent with the proxy analysis. Notably, debt-to-income ratio shows a near-zero correlation, suggesting little independent linear relationship with approval outcomes in this dataset.
 
 ---
 
@@ -390,10 +393,10 @@ Income, credit history, and savings are the strongest legitimate predictors. ZIP
 
 | Finding | Metric | Flag |
 |---------|--------|------|
-| Gender DI below four-fifths threshold | DI = 0.77 | Adverse impact flag |
-| Gender–approval association is statistically significant | p = 0.0008 | Significant |
+| Gender DI below four-fifths threshold | DI = 0.75 | Adverse impact flag |
+| Gender–approval association is statistically significant | p = 0.0003 | Significant |
 | Gender gap is present across **all** age groups | Consistent direction | Systemic |
-| 25–34 age group has lowest approval rate | ~44% | Monitor |
+| 25–34 age group has lowest approval rate | ~45.3% | Monitor |
 | ZIP code not a clear gender proxy | r = −0.22 | Weak signal only |
 | Top predictors are legitimate financial variables | Income, credit history, savings | Expected |
 
