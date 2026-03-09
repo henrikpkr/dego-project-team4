@@ -31,17 +31,17 @@ fairness/bias, and GDPR/AI Act compliance.
 
 ## Key Findings
 
-## 📊 Data Quality Assessment
+## Data Quality Assessment
 
-> **Role:** Data Engineer  
-> **Notebook:** `notebooks/01-data-quality copy.ipynb`  
-> **Dataset:** `data/cleaned_credit_applications.csv` — 500 records, 34 columns
+> **Role:** Data Engineer
+> **Notebook:** `notebooks/01-data-quality.ipynb`
+> **Dataset:** `data/cleaned_credit_applications.csv` — 500 records, 37 columns
 
 ---
 
 ### Overview
 
-The dataset was audited across four data quality dimensions: **completeness**, **consistency**, **validity**, and **accuracy**. Issues were identified, quantified, and remediated programmatically. No records were silently dropped — all decisions are documented below and reflected in the notebook.
+The dataset was audited across four data quality dimensions: completeness, consistency, validity, and accuracy. All issues were identified programmatically, quantified against the raw source, and remediated with explicit, documented decisions. No records were silently dropped. Every affected record is traceable through a boolean flag column in `df_clean`.
 
 **Dataset size progression:**
 
@@ -50,197 +50,220 @@ The dataset was audited across four data quality dimensions: **completeness**, *
 | Raw (`df_raw`) | 502 | After loading `raw_credit_applications.json` |
 | After Completeness | 502 | No rows dropped — flags only |
 | After Consistency | 502 | No rows dropped — normalised in place |
-| After Validity | 502 | No rows dropped — impossible values → `NaN` |
-| After Accuracy | 500 | −2 duplicate `_id` rows removed |
+| After Validity | 502 | No rows dropped — impossible values set to NaN |
+| After Accuracy | 500 | 2 duplicate `_id` rows removed |
 | **Final (`df_clean`)** | **500** | **99.6% data retention** |
 
-**Flag columns created on `df_clean`:**
+**Flag columns in `df_clean`:**
 
-| Flag | True | False |
-|---|---|---|
-| `email_missing` | 7 | 493 |
-| `email_malformed` | 4 | 496 |
-| `ssn_missing` | 4 | 496 |
-| `dob_missing` | 0 | 500 |
-| `annual_income_missing` | 0 | 500 |
-| `debt_to_income_missing` | 1 | 499 |
-| `savings_balance_missing` | 1 | 499 |
-| `credit_history_suspicious` | 0 | 500 |
-| `savings_balance_zero` | 4 | 496 |
-| `ssn_duplicate` | 4 | 496 |
-| `needs_review` | 13 | 487 |
+| Flag | True | False | Dimension |
+|---|---|---|---|
+| `email_missing` | 7 | 493 | Completeness |
+| `email_malformed` | 4 | 496 | Validity |
+| `gender_missing` | 2 | 498 | Completeness |
+| `ssn_missing` | 4 | 496 | Completeness |
+| `dob_missing` | 4 | 496 | Completeness |
+| `annual_income_missing` | 0 | 500 | Completeness |
+| `debt_to_income_missing` | 1 | 499 | Validity |
+| `savings_balance_negative` | 1 | 499 | Validity |
+| `savings_balance_missing` | 1 | 499 | Validity |
+| `savings_balance_zero` | 4 | 496 | Notable |
+| `timestamp_missing` | 438 | 62 | Pipeline |
+| `credit_history_suspicious` | 0 | 500 | Validity |
+| `ssn_duplicate` | 4 | 496 | Accuracy |
+| `needs_review` | 17 | 483 | Composite |
 
-> **`needs_review`** is a composite quarantine flag — `True` for any record with a missing PII field (`email`, `dob`, `ssn`), a missing/invalid financial field (`annual_income`, `savings_balance`, `debt_to_income`), a suspicious credit history, or an SSN collision. **13 records (2.6%) are quarantined** from model training.
+`needs_review` is a composite quarantine flag set to `True` for any record that carries at least one of the following: a missing PII field (`email`, `dob`, `ssn`, `gender`), a missing or invalid financial field (`debt_to_income`, `savings_balance`), or an SSN collision. 17 records (3.4%) are quarantined from model training. `timestamp_missing` is tracked separately as a pipeline defect and does not trigger `needs_review`.
+
+The `needs_review` trigger breakdown is:
+
+| Flag | Records |
+|---|---|
+| `email_missing` | 7 |
+| `email_malformed` | 4 |
+| `gender_missing` | 2 |
+| `ssn_missing` | 4 |
+| `dob_missing` | 4 |
+| `debt_to_income_missing` | 1 |
+| `savings_balance_missing` | 1 |
+| `ssn_duplicate` | 4 |
+
+Note: records may trigger multiple flags simultaneously, so the per-flag totals above sum to more than 17.
 
 ---
 
 ### Completeness
 
-#### Issue 1 — Missing `processing_timestamp` *(440 records, 87.6%)*
+#### Issue 1 — Missing `processing_timestamp` (438 records, 87.6%)
 
-**Finding:** 440 of 502 raw records have no `processing_timestamp`. This is a systemic pipeline defect — the field was not populated for the majority of applications.
+**Finding:** 438 of 500 clean records have no `processing_timestamp`. The field was not populated for the vast majority of applications, indicating a systemic upstream pipeline defect rather than individual data-entry errors.
 
-**Action:** Not flagged in `df_clean` (no downstream model dependency). Documented in the scorecard.
-
----
-
-#### Issue 2 — Missing `email` *(7 records, 1.4%)*
-
-**Finding:** 7 records have no email address at all.
-
-**Action:** Normalised empty strings to `NaN`. Flagged `email_missing = True`. **Not imputed** — guessing PII would corrupt identity verification pipelines and violate GDPR's accuracy principle.
+**Remediation:** Flagged `timestamp_missing = True`. No imputation and no `needs_review` trigger, because `processing_timestamp` has no downstream model or identity-verification dependency. The volume and uniformity of the gap make this a known infrastructure issue, not an application-level anomaly. The field is tracked separately in the scorecard so it remains visible without inflating the quarantine count.
 
 ---
 
-#### Issue 3 — Missing `date_of_birth` *(5 records in raw, 0 after cleaning)*
+#### Issue 2 — Missing `email` (7 records, 1.4%)
 
-**Finding:** 5 raw records had no date of birth. After removing 2 notes-flagged records (see Accuracy), no missing DOBs remained in `df_clean`.
+**Finding:** 7 records have no email address. Empty string values were present in the raw data alongside genuine nulls; both were normalised to `NaN` to enforce a single missing-value representation.
 
-**Action:** Flagged `dob_missing = True` where applicable. **Not imputed** — DOB is PII and a core input to the age-derived credit history cap.
-
----
-
-#### Issue 4 — Missing `ssn` *(5 records in raw)*
-
-**Finding:** 5 records had no SSN.
-
-**Action:** Flagged `ssn_missing = True`. **Not imputed** — SSN is a primary identity field.
+**Remediation:** Flagged `email_missing = True`. Not imputed. PII fields such as email are used in identity verification and regulatory correspondence. Fabricating an address would corrupt those pipelines and would introduce false accuracy, violating the GDPR accuracy principle (Art. 5(1)(d)). These records are quarantined via `needs_review`.
 
 ---
 
-#### Issue 5 — Missing `annual_income` *(5 records, resolved by coalesce)*
+#### Issue 3 — Missing `date_of_birth` (5 in raw, 4 in `df_clean`)
 
-**Finding:** 5 records had `annual_income = null` because the applicant had populated `annual_salary` instead — a clear data-entry error confirmed by perfect field overlap.
+**Finding:** 5 raw records had no date of birth (4 empty strings, 1 null). One of those records was removed during the accuracy phase as a duplicate entry, leaving 4 missing DOBs in `df_clean`.
 
-**Action:** Coalesced `annual_salary → annual_income` for these 5 records. One additional record had a zero income value and was set to `NaN`, covered by `annual_income_missing = True`. No genuine gaps remain after coalesce.
+**Remediation:** Empty strings normalised to `NaN`. Flagged `dob_missing = True`. Not imputed. DOB is PII and is the direct input to the age-derived credit history cap; an imputed value would produce silently incorrect downstream constraints. These records are quarantined via `needs_review`.
 
 ---
 
-#### Issue 6 — Missing `gender` *(3 records, 0.6%)*
+#### Issue 4 — Missing `ssn` (5 in raw, 4 in `df_clean`)
 
-**Finding:** 3 records had an empty `gender` field.
+**Finding:** 5 raw records had no SSN. One was removed during the accuracy phase, leaving 4 in `df_clean`.
 
-**Action:** Set to `"Unknown"` — a protected attribute is **never imputed**, as imputing the majority class would silently encode demographic assumptions.
+**Remediation:** Flagged `ssn_missing = True`. Not imputed. SSN is the primary applicant identity key and is required for duplicate and fraud detection. Fabricating or carrying forward a blank value would undermine both. These records are quarantined via `needs_review`.
+
+---
+
+#### Issue 5 — Missing `annual_income` resolved by field coalesce (5 records)
+
+**Finding:** 5 records had `annual_income = null` because the applicant had populated `annual_salary` instead. The two fields are mutually exclusive across the dataset — no record has both populated — confirming this is a data-entry naming error rather than genuinely missing income data.
+
+**Remediation:** `annual_salary` coalesced into `annual_income` for these 5 records. No flag raised (`annual_income_missing` remains 0 after coalesce). The coalesce is the correct approach because the information is present in the dataset; the issue is only which field it was written to. Discarding or imputing would lose real data unnecessarily.
+
+---
+
+#### Issue 6 — Missing `gender` (2 records in `df_clean`, 0.4%)
+
+**Finding:** 2 records in `df_clean` have no gender value (empty string in raw data). A third raw record with a null gender was removed during the accuracy phase as a duplicate entry and does not appear in `df_clean`.
+
+**Remediation:** Empty strings and nulls normalised to the controlled vocabulary value `Unknown`. Flagged `gender_missing = True`. Not imputed. Gender is a protected attribute under EU anti-discrimination law and the EU AI Act. Imputing the majority class would silently encode a demographic assumption that could skew fairness metrics and bias model training. These records are quarantined via `needs_review`.
 
 ---
 
 ### Consistency
 
-#### Issue 7 — Inconsistent gender coding *(111 records, 22.1%)*
+#### Issue 7 — Inconsistent gender coding (114 non-standard records, 22.7%)
 
-**Finding:** The `gender` field uses four representations for two logical values: `"Male"`, `"M"`, `"Female"`, `"F"`, plus empty/null.
+**Finding:** The `gender` field uses four surface representations for two logical values: `Male`, `M`, `Female`, `F`, plus empty string and null. 114 records used the abbreviated forms. Without normalisation, group-level fairness analysis would produce incorrect counts and approval-rate calculations.
 
-**Action:** Normalised via `GENDER_MAP` → controlled vocabulary `Male / Female / Unknown`.
-
----
-
-#### Issue 8 — `annual_income` stored as string *(8 records, 1.6%)*
-
-**Finding:** 8 records stored income as a string (e.g. `"55000"`, `"$72,000"`) rather than a numeric type.
-
-**Action:** Coerced to `float` via `_coerce_income()`. All 8 were parseable with no information loss.
+**Remediation:** Normalised via `GENDER_MAP` to a controlled vocabulary of `Male`, `Female`, and `Unknown`. After normalisation: Female 251 (50.2%), Male 247 (49.4%), Unknown 2 (0.4%). Normalisation is the correct approach here — the intended meaning is unambiguous; only the encoding differs.
 
 ---
 
-#### Issue 9 — Inconsistent `date_of_birth` formats *(161 records, 32.2%)*
+#### Issue 8 — `annual_income` stored as string (8 records, 1.6%)
 
-**Finding:** DOB is stored in four formats across records:
+**Finding:** 8 records stored income as a plain string (e.g. `"55000"`) rather than a numeric type. All 8 values are clean integers without currency symbols or separators.
+
+**Remediation:** Coerced to `float` via `_coerce_income()`. All 8 were parseable with no information loss; mean income after coercion is $82,705. Type coercion is appropriate because the values are unambiguously numeric — the only defect is the storage type, not the content.
+
+---
+
+#### Issue 9 — Inconsistent `date_of_birth` formats (161 records, 32.2%)
+
+**Finding:** DOB is stored in five formats across the dataset:
 
 | Format | Count |
 |---|---|
-| `YYYY-MM-DD` (ISO) | 339 |
+| ISO `YYYY-MM-DD` | 339 |
 | `YYYY/MM/DD` | 56 |
-| `DD/MM/YYYY` (EU, unambiguous) | 36 |
-| `MM/DD/YYYY` (US, unambiguous) | 26 |
 | Ambiguous `XX/XX/YYYY` | 39 |
-| Empty string | 4 |
+| EU `DD/MM/YYYY` (unambiguous) | 36 |
+| US `MM/DD/YYYY` (unambiguous) | 26 |
+| Null or empty | 4 |
 
-The `DD/MM/YYYY` and `MM/DD/YYYY` formats share a pattern and are ambiguous when day ≤ 12. Records where day > 12 can be identified unambiguously.
+The `DD/MM/YYYY` and `MM/DD/YYYY` patterns overlap when the day value is 12 or below, making 39 records ambiguous by format alone.
 
-**Action:** Normalised to `pd.Timestamp` (ISO 8601) via `parse_date()`. Ambiguous dates treated as European (`DD/MM`) convention — the safest defensible default for a European-facing application. Unparseable values remain `NaT` and are caught by `dob_missing`.
+**Remediation:** All values normalised to `pd.Timestamp` (ISO 8601) via `parse_date()`. Ambiguous dates treated as European convention (`DD/MM/YYYY`). This is the documented default because NovaCred is a European-facing application and EU convention is therefore the statistically safer assumption. 496 of 500 records were parsed successfully. Unparseable or null values remain `NaT` and are caught by `dob_missing`.
 
 ---
 
 ### Validity
 
-#### Issue 10 — `credit_history_months` < 0 *(2 records, 0.4%)*
+#### Issue 10 — `credit_history_months` < 0 (2 records, 0.4%)
 
-**Finding:** 2 records had a negative credit history value — a data-entry error (sign flip).
+**Finding:** 2 records had negative credit history values (`app_043: -10`, `app_156: -3`). A negative credit history duration has no valid interpretation and is consistent with a data-entry sign error.
 
-**Action:** Set to `NaN`; imputed with `0` (documented assumption: no history = 0 months).
-
----
-
-#### Issue 11 — `debt_to_income` > 1.0 *(1 record, 0.2%)*
-
-**Finding:** 1 record had a DTI ratio exceeding 1.0 (debt exceeds income), which is not a valid financial state.
-
-**Action:** Set to `NaN`. Flagged `debt_to_income_missing = True`. **Not imputed.**
+**Remediation:** Set to `NaN`, then imputed with 0 (documented assumption: no verifiable history is treated as zero months). Nulling and zero-imputation is justified because the negative value is definitionally impossible, and zero is the conservative lower bound — it neither fabricates a history nor discards the record.
 
 ---
 
-#### Issue 12 — `savings_balance` < 0 *(1 record, 0.2%)*
+#### Issue 11 — `debt_to_income` > 1.0 (1 record, 0.2%)
 
-**Finding:** 1 record had a negative savings balance.
+**Finding:** 1 record (`app_402`) had a DTI ratio of 1.85. A DTI above 1.0 means total debt exceeds total income, which is not a valid financial state in the context of this dataset's DTI definition.
 
-**Action:** Set to `NaN`. Flagged `savings_balance_missing = True`. **Not imputed.**
-
----
-
-#### Issue 13 — `annual_income` ≤ 0 *(1 record)*
-
-**Finding:** 1 record had a zero income value (not a field-confusion case).
-
-**Action:** Set to `NaN`. Flagged `annual_income_missing = True`.
+**Remediation:** Set to `NaN`. Flagged `debt_to_income_missing = True`. Not imputed. Unlike credit history months, there is no defensible conservative substitute value for DTI — imputing the mean or median would silently alter a financially significant input. The record is quarantined via `needs_review` so it is excluded from model training but retained in the dataset for audit purposes.
 
 ---
 
-#### Issue 14 — `credit_history_months` exceeds age-derived maximum
+#### Issue 12 — `savings_balance` < 0 (1 record, 0.2%)
 
-**Finding:** `app_049` (DOB 2000-05-22) has 92 recorded months of credit history against a maximum of 93 months (months since 18th birthday). Borderline case.
+**Finding:** 1 record (`app_290`) had a savings balance of -5000. A negative savings balance is not a valid value in this dataset — savings balance represents the balance of a deposit account, which cannot be negative.
 
-**Action:** Flagged `credit_history_suspicious = True`. Cap logic is enforced in the pipeline for future violations.
+**Remediation:** Flagged `savings_balance_negative = True` (derived from the raw source to ensure this flag is idempotent across pipeline re-runs). Value set to `NaN`. Also flagged `savings_balance_missing = True`. Not imputed for the same reason as DTI — there is no conservative substitute value. The record is quarantined via `needs_review`.
 
 ---
 
-#### Issue 15 — Malformed email format + name/email identity mismatch *(4 records, 0.8%)*
+#### Issue 13 — `savings_balance` == 0 (4 records, notable)
 
-**Finding:** 4 records contain structurally invalid email addresses, each of which also contains a different person's name in the local part — a simultaneous format validity failure and identity consistency failure:
+**Finding:** 4 records have a savings balance of exactly 0. This is a valid value and not a data quality defect, but it is flagged for analyst awareness because zero savings is a financially meaningful edge case that may affect model behaviour.
 
-| Record | Name | Invalid Email | Problem |
+**Remediation:** Flagged `savings_balance_zero = True`. No nulling, no quarantine. This flag exists solely to make the zero-savings segment visible to downstream analysts without interfering with the pipeline.
+
+---
+
+#### Issue 14 — `credit_history_months` exceeds age-derived maximum (0 records after pipeline enforcement)
+
+**Finding:** No records in `df_clean` have a credit history that exceeds the maximum possible given the applicant's age (months since 18th birthday as of the audit date 2026-02-28). The cap was enforced during cleaning; any future records that breach it will be clamped and flagged `credit_history_suspicious = True`.
+
+**Remediation:** Cap logic is encoded in the pipeline. If a value exceeds the age-derived maximum, it is clamped to that maximum and flagged. This is preferable to nulling because a plausible upper bound exists and clamping preserves the record's usability while correcting the impossible value.
+
+---
+
+#### Issue 15 — Malformed email with name/identity mismatch (4 records, 0.8%)
+
+**Finding:** 4 records contain structurally invalid email addresses, each of which also contains a different person's name in the local part — a simultaneous format validity failure and an identity consistency failure:
+
+| Record | Name | Email | Problem |
 |---|---|---|---|
 | `app_204` | Jonathan Carter | `mike johnson@gmail.com` | Space in local part |
-| `app_299` | Samuel Gonzalez | `test.user.outlook.com` | Missing `@` |
+| `app_299` | Samuel Gonzalez | `test.user.outlook.com` | Missing @ symbol |
 | `app_068` | Emily Lopez | `john.doe@invalid` | Invalid TLD |
 | `app_146` | Amy Flores | `sarah.smith@` | Truncated, no domain |
 
-**Action:** Flagged `email_malformed = True`. Full records **retained** — financial data remains valid; only email-dependent pipeline steps must exclude these 4 records.
+**Remediation:** Flagged `email_malformed = True`. Records retained in full — the financial data is intact and unaffected. Only processing steps that depend on a valid email address must exclude these 4 records. Dropping the records entirely would discard valid financial information and is disproportionate to the nature of the defect. These records are quarantined via `needs_review`.
 
 ---
 
 ### Accuracy
 
-#### Issue 16 — Duplicate `_id` records *(2 pairs → 2 removed)*
+#### Issue 16 — Duplicate `_id` records (2 pairs, 2 rows removed)
 
-**Finding:** 2 pairs of records share the same `_id` but have conflicting field values — these were identified via `notes` values `RESUBMISSION` and `DUPLICATE_ENTRY_ERROR`.
+**Finding:** 2 application IDs (`app_001`, `app_042`) each appear twice in the raw dataset with conflicting field values. Both duplicate copies were identifiable via `notes` values of `DUPLICATE_ENTRY_ERROR` and `RESUBMISSION`, confirming these are submission-level duplicates rather than data corruption.
 
-**Action:** Removed the flagged entries. Dataset reduced from 502 → 500 rows (`last-write-wins` strategy).
-
----
-
-#### Issue 17 — SSN shared by multiple distinct applicants *(2 SSNs → 4 records, 0.8%)*
-
-**Finding:** Two SSN values are each shared by two distinct applicants (different names, genders, and financial profiles). This represents a data integrity failure.
-
-**Action:** Flagged `ssn_duplicate = True` on all 4 affected records. Records **quarantined** from model training via `needs_review`. Incident should be raised as a data integrity issue; a `UNIQUE` constraint on `ssn` is recommended.
+**Remediation:** The notes-flagged copy of each pair was removed. Dataset reduced from 502 to 500 rows (99.6% retention). The specifically flagged copy was removed in each case, which is more precise than a positional last-write-wins strategy and is fully documented.
 
 ---
 
-#### Issue 18 — PII stored in plaintext *(500 records, 100%)*
+#### Issue 17 — SSN shared by multiple distinct applicants (2 SSNs, 4 records, 0.8%)
 
-**Finding:** SSN, email, and other PII fields are stored unencrypted.
+**Finding:** Two SSN values appear on records belonging to demonstrably different individuals (different names, emails, genders, and financial profiles). A third SSN collision exists for the `app_042` duplicate pair but is resolved by deduplication. The two genuine cross-applicant collisions are:
 
-**Action:** Pseudonymisation required before sharing or using in downstream pipelines. Enforce access controls. Covered in `notebooks/03-privacy-demo.ipynb`.
+| SSN | Records |
+|---|---|
+| `937-72-8731` | `app_101` (Sandra Smith) and `app_234` (Samuel Hill) |
+| `780-24-9300` | `app_088` (Susan Martinez) and `app_016` (Gary Wilson) |
+
+**Remediation:** All 4 affected records flagged `ssn_duplicate = True` and quarantined via `needs_review`. Records are retained rather than dropped — removing them would destroy potentially valid financial data and could obstruct fraud investigation. This incident must be escalated for manual review. A `UNIQUE` constraint on the `ssn` field at the data ingestion layer is recommended to prevent recurrence.
+
+---
+
+#### Issue 18 — PII stored in plaintext (500 records, 100%)
+
+**Finding:** SSN, email address, date of birth, and full name are all stored in plaintext in the raw dataset. This represents a GDPR compliance risk — exposure of this file would constitute a personal data breach.
+
+**Remediation:** Pseudonymisation and access control are addressed in `notebooks/03-privacy-demo.ipynb`. The cleaned export (`data/cleaned_credit_applications.csv`) retains these fields for internal audit use only and must not be distributed without pseudonymisation.
 
 ---
 
@@ -249,14 +272,18 @@ The `DD/MM/YYYY` and `MM/DD/YYYY` formats share a pattern and are ambiguous when
 | Metric | Value |
 |---|---|
 | Raw records | 502 |
-| Records after deduplication | **500** |
-| Columns in df_clean | **34** |
-| Records flagged needs_review = True | **13 (2.6%)** |
-| Records flagged ssn_duplicate = True | 4 |
-| Records flagged email_malformed = True | 4 |
-| Records flagged email_missing = True | 7 |
-| Records flagged credit_history_suspicious = True | 0 |
-| Records ready for analysis | **487 (97.4%)** |
+| Records after deduplication | 500 |
+| Columns in `df_clean` | 37 |
+| Records flagged `needs_review = True` | 17 (3.4%) |
+| Records flagged `ssn_duplicate = True` | 4 |
+| Records flagged `email_malformed = True` | 4 |
+| Records flagged `email_missing = True` | 7 |
+| Records flagged `gender_missing = True` | 2 |
+| Records flagged `dob_missing = True` | 4 |
+| Records flagged `savings_balance_negative = True` | 1 |
+| Records flagged `timestamp_missing = True` | 438 (pipeline defect, tracked separately) |
+| Records flagged `credit_history_suspicious = True` | 0 |
+| Records ready for analysis | 483 (96.6%) |
 
 ---
 
