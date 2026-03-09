@@ -99,7 +99,6 @@ Note: records may trigger multiple flags simultaneously, so the per-flag totals 
 **Finding:** 438 of 500 clean records have no `processing_timestamp`. The field was not populated for the vast majority of applications, indicating a systemic upstream pipeline defect rather than individual data-entry errors.
 
 **Remediation:** Flagged `timestamp_missing = True`. No imputation and no `needs_review` trigger, because `processing_timestamp` has no downstream model or identity-verification dependency. 
----
 
 #### Issue 2: Missing `email` (7 records, 1.4%)
 
